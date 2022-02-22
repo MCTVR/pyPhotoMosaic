@@ -19,12 +19,12 @@ Artist:
 
 Windows:
 ```bash
-python mos.py <target_image> <image tiles folder> <output_filename>
+python pMos.py <target_image> <image tiles folder> <output_filename>
 ```
 
 macOS:
 ```bash
-python3 mos.py <target_image> <image tiles folder> <output_filename>
+python3 pMos.py <target_image> <image tiles folder> <output_filename>
 ```
 
 It might take a while to create a the Photo Mosaics.
