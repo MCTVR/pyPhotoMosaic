@@ -3,8 +3,9 @@
 
 ## Example:
 ### Original & Output
-<img src="target.png" height="300px"><img src="output.jpg" height="300px">
-
+<p float="left">
+<img src="target.png" height="300px" /><img src="output.jpg" height="300px" />
+</p>
 Artist: 
 <a href="https://www.pixiv.net/artworks/96381546">https://www.pixiv.net/artworks/96381546</a>
 
