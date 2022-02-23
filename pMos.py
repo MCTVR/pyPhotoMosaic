@@ -11,8 +11,8 @@ from multiprocessing import Process
 TILE_SIZE = 80  # Mosaic Tile Size in Pixels
 CACHE_DIR = ".CACHE"
 TARGET_CACHE_DIR = ".TARGET_CACHE"
-REUSE_CACHE = True
-ENLARGE_FACTOR = 9
+REUSE_CACHE = False
+ENLARGE_FACTOR = 8
 
 rgbList = []
 
