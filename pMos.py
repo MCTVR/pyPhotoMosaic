@@ -7,11 +7,11 @@ from multiprocessing import Process
 import numpy as np
 from PIL import Image
 
-TILE_SIZE = 50  # Mosaic Tile Size in Pixels
+TILE_SIZE = 100  # Mosaic Tile Size in Pixels
 CACHE_DIR = ".CACHE"
 TARGET_CACHE_DIR = ".TARGET_CACHE"
 REUSE_CACHE = True
-ENLARGE_FACTOR = 4
+ENLARGE_FACTOR = 2
 
 
 def imgcrop(im, xPieces, yPieces):  # im in the format of numpy array
@@ -155,7 +155,7 @@ def processTile(dir):
         pass
 
 
-def processTargetImage(target_path, SOURCE_DIR):
+def processTargetImage(target_path, SOURCE_DIR, OUTPUT):
     # process source into tiles
     _processTile = Process(target=processTile, args=(SOURCE_DIR,))
     _processTile.start()
@@ -226,7 +226,7 @@ def processTargetImage(target_path, SOURCE_DIR):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
+    if len(sys.argv) < 3:
         print(
             "[-] Usage: python mos.py <target_image> <image tiles folder> <output_filename>")
     else:
@@ -238,4 +238,4 @@ if __name__ == "__main__":
         elif not os.path.isdir(SOURCE_DIR):
             print("[-] Source image tiles folder not found")
         else:
-            processTargetImage(target_image, SOURCE_DIR)
+            processTargetImage(target_image, SOURCE_DIR, OUTPUT)
