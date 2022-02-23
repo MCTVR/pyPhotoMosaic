@@ -1,42 +1,37 @@
 # -*- coding: utf-8 -*-
 import os
 import shutil
+<<<<<<< HEAD
 from sys import argv
 from threading import Thread
 import cv2
+=======
+import sys
+import cv2
+from multiprocessing import Process
+>>>>>>> parent of d84202396 (Update pMos.py)
 import numpy as np
 from PIL import Image
 from multiprocessing import Process
 
-TILE_SIZE = 50  # Mosaic Tile Size in Pixels
+TILE_SIZE = 80  # Mosaic Tile Size in Pixels
 CACHE_DIR = ".CACHE"
 TARGET_CACHE_DIR = ".TARGET_CACHE"
 REUSE_CACHE = False
-ENLARGE_FACTOR = 4
-
-rgbList = []
-
-
-def analyseTileColor():
-    print("[!] Tiles' RGB values Analysing")
-    tilesRGB = [f for f in os.listdir(CACHE_DIR)]
-
-    for rgb in tilesRGB:
-        rgb = rgb.split(".")[0].split(",")
-        rgbList.append(
-            np.array([int(float(rgb[0])), int(float(rgb[1])), int(float(rgb[2]))]))
+ENLARGE_FACTOR = 8
 
 
 def findDominantColor(im):
-    width, height = im.size
     r_sum = g_sum = b_sum = 0
     pixel_count = TILE_SIZE * TILE_SIZE
+    width, height = im.size
     for i in range(0, width):
         for j in range(0, height):
             r_count, g_count, b_count = im.getpixel((i, j))
             r_sum += r_count
             g_sum += g_count
             b_sum += b_count
+
     rgb = np.array([int(r_sum / pixel_count), int(g_sum /
                                                   pixel_count), int(b_sum / pixel_count)])
     pixels = im.getcolors(TILE_SIZE * TILE_SIZE)
@@ -110,7 +105,10 @@ def processTile(dir):
                 index += 1
                 shutil.copy(os.path.join(dir, f),
                             f"{CACHE_DIR}/cached_{index}.jpg")
+<<<<<<< HEAD
         print("[+] Cache Loaded")
+=======
+>>>>>>> parent of d84202396 (Update pMos.py)
 
         for fi in os.listdir(CACHE_DIR):
             f = cv2.imread(CACHE_DIR+"/"+fi)
@@ -154,7 +152,7 @@ def processTile(dir):
                             [int(cv2.IMWRITE_JPEG_QUALITY), 100])
             else:
                 pass
-        print("[!] Tiles Processed")
+
     elif REUSE_CACHE == True:
         pass
 
@@ -202,13 +200,30 @@ def processTargetImage(target_path, SOURCE_DIR, OUTPUT):
 
     print("[!] Tiles Processed...")
 
+<<<<<<< HEAD
     analyseTileColor()
 
     _imgcrop.join()
     print("[!] Target Image Cropped...")
 
     print("[+] Building Output Image...")
+=======
+    tilesRGB = [f.split(".")[0] for f in os.listdir(CACHE_DIR)]
 
+    rgbList = []
+
+    for rgb in tilesRGB:
+        rgb = rgb.split(",")
+        rgbList.append(
+            np.array([int(float(rgb[0])), int(float(rgb[1])), int(float(rgb[2]))]))
+    print("[!] Tiles Processed")
+
+    imgcrop(img, width // TILE_SIZE, height // TILE_SIZE)
+>>>>>>> parent of d84202396 (Update pMos.py)
+
+    print("[!] Target Image Processed")
+
+    print("[+] Building Output Image...")
     for i in range(0, (height // TILE_SIZE)):
         for j in range(0, (width // TILE_SIZE)):
             rgb = Image.open(os.path.join(TARGET_CACHE_DIR,
@@ -219,10 +234,9 @@ def processTargetImage(target_path, SOURCE_DIR, OUTPUT):
             diff = np.abs(np.subtract(rgbList, mean))
             # find the index of the diff in rgbList
             index = np.where(diff == diff.min())[0][0]
-            # find the rgb value of the tile in rgbList
             fileName = f"{CACHE_DIR}/{np.array2string(rgbList[index], separator = ',').replace(' ', '').replace('[', '').replace(']', '')}.jpg"
-            output_img.paste(Image.open(os.path.join(fileName)),
-                             (j * TILE_SIZE, i * TILE_SIZE))
+            fileName = Image.open(os.path.join(fileName))
+            output_img.paste(fileName, (j * TILE_SIZE, i * TILE_SIZE))
 
     output_img.save(os.path.join(OUTPUT))
 
@@ -230,13 +244,13 @@ def processTargetImage(target_path, SOURCE_DIR, OUTPUT):
 
 
 if __name__ == "__main__":
-    if len(argv) < 3:
+    if len(sys.argv) < 3:
         print(
             "[-] Usage: python mos.py <target_image> <image tiles folder> <output_filename>")
     else:
-        target_image = argv[1]
-        SOURCE_DIR = argv[2]
-        OUTPUT = argv[3]
+        target_image = sys.argv[1]
+        SOURCE_DIR = sys.argv[2]
+        OUTPUT = sys.argv[3]
         if not os.path.isfile(target_image):
             print("[-] Target image not found")
         elif not os.path.isdir(SOURCE_DIR):
