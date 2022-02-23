@@ -2,16 +2,26 @@
 import os
 import shutil
 import sys
+from threading import Thread
 import cv2
 import numpy as np
 from PIL import Image
+from multiprocessing import Process
 
 TILE_SIZE = 80  # Mosaic Tile Size in Pixels
 CACHE_DIR = ".CACHE"
 TARGET_CACHE_DIR = ".TARGET_CACHE"
-REUSE_CACHE = False
-ENLARGE_FACTOR = 8
+REUSE_CACHE = True
+ENLARGE_FACTOR = 9
 
+rgbList = []
+
+def analyseTiles():
+    tilesRGB = [f.split(".")[0] for f in os.listdir(CACHE_DIR)]
+    for rgb in tilesRGB:
+        rgb = rgb.split(",")
+        rgbList.append(
+            np.array([int(float(rgb[0])), int(float(rgb[1])), int(float(rgb[2]))]))
 
 def findDominantColor(im):
     r_sum = g_sum = b_sum = 0
@@ -152,8 +162,9 @@ def processTile(dir):
 
 
 def processTargetImage(target_path, SOURCE_DIR, OUTPUT):
-
-    processTile(SOURCE_DIR)
+    # load target image
+    _processTile = Process(target=processTile, args=(SOURCE_DIR,))
+    _processTile.start()
 
     print("[+] Processing Main Image...")
 
@@ -167,7 +178,8 @@ def processTargetImage(target_path, SOURCE_DIR, OUTPUT):
     height, width = img.shape[0], img.shape[1]
 
     if (height % TILE_SIZE == 0) and (width % TILE_SIZE == 0):
-        imgcrop(img, width // TILE_SIZE, height // TILE_SIZE)
+        _imgcrop = Process(target=imgcrop, args=(img, width // TILE_SIZE, height // TILE_SIZE))
+        _imgcrop.start()
         print("[!] Cropping Target Image...")
     else:
         # trim target height and width evenly to make it divisible by TILE_SIZE
@@ -176,7 +188,8 @@ def processTargetImage(target_path, SOURCE_DIR, OUTPUT):
         img = img[pixelsToTrimHeightEach:height-pixelsToTrimHeightEach,
                   pixelsToTrimWidthEach:width-pixelsToTrimWidthEach]
         height, width = img.shape[0], img.shape[1]
-        imgcrop(img, width // TILE_SIZE, height // TILE_SIZE)
+        _imgcrop = Process(target=imgcrop, args=(img, width // TILE_SIZE, height // TILE_SIZE))
+        _imgcrop.start()
         print("[!] Cropping Target Image...")
     
     if os.path.exists(os.path.join(TARGET_CACHE_DIR)):
@@ -185,21 +198,19 @@ def processTargetImage(target_path, SOURCE_DIR, OUTPUT):
     else:
         os.mkdir(os.path.join(TARGET_CACHE_DIR))
     output_img = Image.new('RGB', size=(width, height))
+    _processTile.join()
+    _analyseTiles = Thread(target=analyseTiles, args=())
+    _analyseTiles.start()
 
-    tilesRGB = [f.split(".")[0] for f in os.listdir(CACHE_DIR)]
-
-    rgbList = []
-
-    for rgb in tilesRGB:
-        rgb = rgb.split(",")
-        rgbList.append(
-            np.array([int(float(rgb[0])), int(float(rgb[1])), int(float(rgb[2]))]))
+    _imgcrop.join()
+    
     print("[!] Tiles Processed")
 
     imgcrop(img, width // TILE_SIZE, height // TILE_SIZE)
 
     print("[!] Target Image Processed")
 
+    _analyseTiles.join()
     print("[+] Building Output Image...")
     for i in range(0, (height // TILE_SIZE)):
         for j in range(0, (width // TILE_SIZE)):
