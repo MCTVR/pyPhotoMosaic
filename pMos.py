@@ -2,11 +2,11 @@
 import os
 import shutil
 from sys import argv
-import cv2
-from multiprocessing import Process
 from threading import Thread
+import cv2
 import numpy as np
 from PIL import Image
+from multiprocessing import Process
 
 TILE_SIZE = 50  # Mosaic Tile Size in Pixels
 CACHE_DIR = ".CACHE"
@@ -98,9 +98,10 @@ def processTile(dir):
     makeCache()
 
     # copy and rename all files into index numbers in dir to CACHE_DIR
-    index = 0
     if REUSE_CACHE == False:
         # load all files in CACHE_DIR one by one and crop them into tiles
+
+        index = 0
         for f in os.listdir(dir):
             cache_img = cv2.imread(os.path.join(dir, f), 1)
             if not f.endswith(".jpg"):
@@ -111,7 +112,6 @@ def processTile(dir):
                 index += 1
                 shutil.copy(os.path.join(dir, f),
                             f"{CACHE_DIR}/cached_{index}.jpg")
-
         print("[+] Cache Loaded")
 
         for fi in os.listdir(CACHE_DIR):
@@ -162,9 +162,9 @@ def processTile(dir):
 
 
 def processTargetImage(target_path, SOURCE_DIR, OUTPUT):
-    # process source into tiles
-    _processTile = Process(target=processTile, args=(SOURCE_DIR,))
-    _processTile.start()
+
+    p_processTile = Process(target=processTile, args=(SOURCE_DIR,))
+    p_processTile.start()
 
     print("[+] Processing Main Image...")
 
@@ -178,7 +178,10 @@ def processTargetImage(target_path, SOURCE_DIR, OUTPUT):
     height, width = img.shape[0], img.shape[1]
 
     if (height % TILE_SIZE == 0) and (width % TILE_SIZE == 0):
-        pass
+        _imgcrop = Process(target=imgcrop, args=(
+            img, width // TILE_SIZE, height // TILE_SIZE))
+        _imgcrop.start()
+        print("[!] Cropping Target Image...")
     else:
         # trim target height and width evenly to make it divisible by TILE_SIZE
         pixelsToTrimHeightEach = (height % TILE_SIZE) // 2
@@ -186,27 +189,27 @@ def processTargetImage(target_path, SOURCE_DIR, OUTPUT):
         img = img[pixelsToTrimHeightEach:height-pixelsToTrimHeightEach,
                   pixelsToTrimWidthEach:width-pixelsToTrimWidthEach]
         height, width = img.shape[0], img.shape[1]
+        _imgcrop = Thread(target=imgcrop, args=(
+            img, width // TILE_SIZE, height // TILE_SIZE))
+        _imgcrop.start()
+        print("[!] Cropping Target Image...")
 
     if os.path.exists(os.path.join(TARGET_CACHE_DIR)):
         for f in os.listdir(os.path.join(TARGET_CACHE_DIR)):
             os.remove(os.path.join(TARGET_CACHE_DIR, f))
     else:
         os.mkdir(os.path.join(TARGET_CACHE_DIR))
-
     output_img = Image.new('RGB', size=(width, height))
 
-    _processTile.join()
+    p_processTile.join()
+    print("[!] Tiles Processed...")
 
-    _analyseTileColor = Thread(target=analyseTileColor, args=())
-    _analyseTileColor.start()
+    analyseTileColor()
 
-    print("[!] Cropping Target Image...")
-    _imgcrop = Process(target=imgcrop, args=(img, width // TILE_SIZE, height // TILE_SIZE))
-    _imgcrop.start()
+    _imgcrop.join()
+    print("[!] Target Image Cropped...")
 
     print("[+] Building Output Image...")
-    _analyseTileColor.join()
-    _imgcrop.join()
 
     for i in range(0, (height // TILE_SIZE)):
         for j in range(0, (width // TILE_SIZE)):
