@@ -96,12 +96,10 @@ def makeCache():
 def processTile(dir):
 
     makeCache()
-
+    index = 0
     # copy and rename all files into index numbers in dir to CACHE_DIR
     if REUSE_CACHE == False:
         # load all files in CACHE_DIR one by one and crop them into tiles
-
-        index = 0
         for f in os.listdir(dir):
             cache_img = cv2.imread(os.path.join(dir, f), 1)
             if not f.endswith(".jpg"):
@@ -193,7 +191,8 @@ def processTargetImage(target_path, SOURCE_DIR, OUTPUT):
             img, width // TILE_SIZE, height // TILE_SIZE))
         _imgcrop.start()
         print("[!] Cropping Target Image...")
-
+    p_processTile.join()
+    
     if os.path.exists(os.path.join(TARGET_CACHE_DIR)):
         for f in os.listdir(os.path.join(TARGET_CACHE_DIR)):
             os.remove(os.path.join(TARGET_CACHE_DIR, f))
@@ -201,7 +200,6 @@ def processTargetImage(target_path, SOURCE_DIR, OUTPUT):
         os.mkdir(os.path.join(TARGET_CACHE_DIR))
     output_img = Image.new('RGB', size=(width, height))
 
-    p_processTile.join()
     print("[!] Tiles Processed...")
 
     analyseTileColor()
