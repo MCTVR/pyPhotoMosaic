@@ -8,13 +8,14 @@ import numpy as np
 from PIL import Image
 from multiprocessing import Process
 
-TILE_SIZE = 80  # Mosaic Tile Size in Pixels
+TILE_SIZE = 50  # Mosaic Tile Size in Pixels
 CACHE_DIR = ".CACHE"
 TARGET_CACHE_DIR = ".TARGET_CACHE"
 REUSE_CACHE = False
-ENLARGE_FACTOR = 8
+ENLARGE_FACTOR = 4
 
 rgbList = []
+
 
 def analyseTiles():
     tilesRGB = [f.split(".")[0] for f in os.listdir(CACHE_DIR)]
@@ -22,6 +23,7 @@ def analyseTiles():
         rgb = rgb.split(",")
         rgbList.append(
             np.array([int(float(rgb[0])), int(float(rgb[1])), int(float(rgb[2]))]))
+
 
 def findDominantColor(im):
     r_sum = g_sum = b_sum = 0
@@ -100,7 +102,10 @@ def processTile(dir):
         # load all files in CACHE_DIR one by one and crop them into tiles
         for f in os.listdir(dir):
             cache_img = cv2.imread(os.path.join(dir, f), 1)
-            if not f.endswith(".jpg") and not f.endswith(".DS_Store"):
+
+            if f.endswith("webp"):
+                os.remove(os.path.join(dir, f))
+            elif not f.endswith(".jpg") and not f.endswith(".DS_Store"):
                 index += 1
                 cv2.imwrite(f"{CACHE_DIR}/cached_{index}.jpg",
                             cache_img, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
@@ -108,54 +113,55 @@ def processTile(dir):
                 index += 1
                 shutil.copy(os.path.join(dir, f),
                             f"{CACHE_DIR}/cached_{index}.jpg")
-            else:
-                pass
 
         for fi in os.listdir(CACHE_DIR):
-            f = cv2.imread(CACHE_DIR+"/"+fi)
-            if fi.endswith(".DS_STORE"):
-                pass
-            elif fi.endswith(".jpg"):
-                height, width = f.shape[:2]
-                # crop largest square in center of image
-                if height == width:
-                    f = cv2.resize(f, (TILE_SIZE, TILE_SIZE),
-                                interpolation=cv2.INTER_AREA)
-                    _f = cv2.cvtColor(f, cv2.COLOR_BGR2RGB)
-                    dominantColor = findDominantColor(Image.fromarray(_f))
-                    os.remove(CACHE_DIR+"/"+fi)
-                    cv2.imwrite(f"{CACHE_DIR}/{dominantColor}.jpg", f,
-                                [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+            try:
+                f = cv2.imread(CACHE_DIR+"/"+fi)
+                if fi.endswith(".jpg"):
+                    height, width = f.shape[:2]
+                    # crop largest square in center of image
+                    if height == width:
+                        f = cv2.resize(f, (TILE_SIZE, TILE_SIZE),
+                                    interpolation=cv2.INTER_AREA)
+                        _f = cv2.cvtColor(f, cv2.COLOR_BGR2RGB)
+                        dominantColor = findDominantColor(Image.fromarray(_f))
+                        os.remove(CACHE_DIR+"/"+fi)
+                        cv2.imwrite(f"{CACHE_DIR}/{dominantColor}.jpg", f,
+                                    [int(cv2.IMWRITE_JPEG_QUALITY), 100])
 
-                elif width > height:
-                    x = int((width - height) / 2)
-                    y = 0
-                    w = height
-                    h = height
-                    f = cv2.resize(f[y:y+h, x:x+w], (TILE_SIZE,
-                                                    TILE_SIZE), interpolation=cv2.INTER_AREA)
-                    _f = cv2.cvtColor(f, cv2.COLOR_BGR2RGB)
-                    dominantColor = findDominantColor(Image.fromarray(_f))
+                    elif width > height:
+                        x = int((width - height) / 2)
+                        y = 0
+                        w = height
+                        h = height
+                        f = cv2.resize(f[y:y+h, x:x+w], (TILE_SIZE,
+                                                        TILE_SIZE), interpolation=cv2.INTER_AREA)
+                        _f = cv2.cvtColor(f, cv2.COLOR_BGR2RGB)
+                        dominantColor = findDominantColor(Image.fromarray(_f))
 
-                    os.remove(CACHE_DIR+"/"+fi)
-                    cv2.imwrite(f"{CACHE_DIR}/{dominantColor}.jpg", f,
-                                [int(cv2.IMWRITE_JPEG_QUALITY), 100])
-                elif height > width:
-                    x = 0
-                    y = int((height - width) / 2)
-                    w = width
-                    h = width
-                    f = cv2.resize(f[y:y+h, x:x+w], (TILE_SIZE,
-                                                    TILE_SIZE), interpolation=cv2.INTER_AREA)
+                        os.remove(CACHE_DIR+"/"+fi)
+                        cv2.imwrite(f"{CACHE_DIR}/{dominantColor}.jpg", f,
+                                    [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+                    elif height > width:
+                        x = 0
+                        y = int((height - width) / 2)
+                        w = width
+                        h = width
+                        f = cv2.resize(f[y:y+h, x:x+w], (TILE_SIZE,
+                                                        TILE_SIZE), interpolation=cv2.INTER_AREA)
 
-                    _f = cv2.cvtColor(f, cv2.COLOR_BGR2RGB)
-                    dominantColor = findDominantColor(Image.fromarray(_f))
+                        _f = cv2.cvtColor(f, cv2.COLOR_BGR2RGB)
+                        dominantColor = findDominantColor(Image.fromarray(_f))
 
-                    os.remove(CACHE_DIR+"/"+fi)
-                    cv2.imwrite(f"{CACHE_DIR}/{dominantColor}.jpg", f,
-                                [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+                        os.remove(CACHE_DIR+"/"+fi)
+                        cv2.imwrite(f"{CACHE_DIR}/{dominantColor}.jpg", f,
+                                    [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+                    else:
+                        pass
                 else:
-                    pass
+                    os.remove(CACHE_DIR+"/"+fi)
+            except:
+                pass
 
     elif REUSE_CACHE == True:
         pass
@@ -178,7 +184,8 @@ def processTargetImage(target_path, SOURCE_DIR, OUTPUT):
     height, width = img.shape[0], img.shape[1]
 
     if (height % TILE_SIZE == 0) and (width % TILE_SIZE == 0):
-        _imgcrop = Process(target=imgcrop, args=(img, width // TILE_SIZE, height // TILE_SIZE))
+        _imgcrop = Process(target=imgcrop, args=(
+            img, width // TILE_SIZE, height // TILE_SIZE))
         _imgcrop.start()
         print("[!] Cropping Target Image...")
     else:
@@ -188,10 +195,11 @@ def processTargetImage(target_path, SOURCE_DIR, OUTPUT):
         img = img[pixelsToTrimHeightEach:height-pixelsToTrimHeightEach,
                   pixelsToTrimWidthEach:width-pixelsToTrimWidthEach]
         height, width = img.shape[0], img.shape[1]
-        _imgcrop = Process(target=imgcrop, args=(img, width // TILE_SIZE, height // TILE_SIZE))
+        _imgcrop = Process(target=imgcrop, args=(
+            img, width // TILE_SIZE, height // TILE_SIZE))
         _imgcrop.start()
         print("[!] Cropping Target Image...")
-    
+
     if os.path.exists(os.path.join(TARGET_CACHE_DIR)):
         for f in os.listdir(os.path.join(TARGET_CACHE_DIR)):
             os.remove(os.path.join(TARGET_CACHE_DIR, f))
@@ -200,17 +208,18 @@ def processTargetImage(target_path, SOURCE_DIR, OUTPUT):
     output_img = Image.new('RGB', size=(width, height))
     _processTile.join()
     _analyseTiles = Thread(target=analyseTiles, args=())
-    _analyseTiles.start()
 
     _imgcrop.join()
-    
-    print("[!] Tiles Processed")
 
     imgcrop(img, width // TILE_SIZE, height // TILE_SIZE)
 
+    _analyseTiles.start()
+    _analyseTiles.join()
+
     print("[!] Target Image Processed")
 
-    _analyseTiles.join()
+    print("[!] Tiles Processed")
+
     print("[+] Building Output Image...")
     for i in range(0, (height // TILE_SIZE)):
         for j in range(0, (width // TILE_SIZE)):
