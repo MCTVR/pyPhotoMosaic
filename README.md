@@ -22,7 +22,7 @@ Windows:
 python pMos.py <target_image> <image tiles folder> <output_filename>
 ```
 
-macOS:
+Linux & macOS:
 ```console
 python3 pMos.py <target_image> <image tiles folder> <output_filename>
 ```
