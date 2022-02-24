@@ -1,5 +1,5 @@
 # pyPhotoMosaic
- pyPhotoMosaic lets you create photo mosaics.
+ pyPhotoMosaic lets you create photomosaics.
 
 ## Example:
 ### Original & Output
