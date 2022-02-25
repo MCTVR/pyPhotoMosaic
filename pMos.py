@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import os
 import shutil
 import sys
@@ -6,22 +5,39 @@ from threading import Thread
 import cv2
 import numpy as np
 from PIL import Image
-from multiprocessing import Process
+from multiprocessing import Process, Pool, cpu_count
 
-TILE_SIZE = 50  # Mosaic Tile Size in Pixels
+TILE_SIZE = 80  # Mosaic Tile Size in Pixels
 CACHE_DIR = ".CACHE"
 TARGET_CACHE_DIR = ".TARGET_CACHE"
-REUSE_CACHE = False
-ENLARGE_FACTOR = 4
+REUSE_CACHE = True
+ENLARGE_FACTOR = 8
+workers = cpu_count()
 
-rgbList = []
+_rgbList = []
+
+def buildMosaic(height, width, rgbList, OUTPUT):
+    output_img = Image.new('RGB', size=(width, height))
+    for i in range(0, (height // TILE_SIZE)):
+        for j in range(0, (width // TILE_SIZE)):
+            rgb = Image.open(os.path.join(TARGET_CACHE_DIR,
+                                          str(i) + "," + str(j) + ".png"))
+            mean = np.mean(np.array(rgb))   # find mean color value of a rgb tile
+            diff = np.abs(np.subtract(rgbList, mean))   # find the difference between two arrays
+            index = np.where(diff == diff.min())[0][0]  # find the index of the diff in rgbList
+            fileName = f"{CACHE_DIR}/{np.array2string(rgbList[index], separator = ',').replace(' ', '').replace('[', '').replace(']', '')}.jpg"
+            fileName = Image.open(os.path.join(fileName))
+            output_img.paste(fileName, (j * TILE_SIZE, i * TILE_SIZE))
+    output_img.save(os.path.join(OUTPUT))
+
+    print("[+] Image created:", OUTPUT)
 
 
 def analyseTiles():
     tilesRGB = [f.split(".")[0] for f in os.listdir(CACHE_DIR)]
     for rgb in tilesRGB:
         rgb = rgb.split(",")
-        rgbList.append(
+        _rgbList.append(
             np.array([int(float(rgb[0])), int(float(rgb[1])), int(float(rgb[2]))]))
 
 
@@ -91,7 +107,6 @@ def makeCache():
             makeCache()
             return 0
 
-
 def processTile(dir):
 
     makeCache()
@@ -113,7 +128,6 @@ def processTile(dir):
                 index += 1
                 shutil.copy(os.path.join(dir, f),
                             f"{CACHE_DIR}/cached_{index}.jpg")
-
         for fi in os.listdir(CACHE_DIR):
             try:
                 f = cv2.imread(CACHE_DIR+"/"+fi)
@@ -169,8 +183,9 @@ def processTile(dir):
 
 def processTargetImage(target_path, SOURCE_DIR, OUTPUT):
     # load target image
-    _processTile = Process(target=processTile, args=(SOURCE_DIR,))
-    _processTile.start()
+    _processTile = Pool(workers)
+    _processTile.map_async(processTile, [SOURCE_DIR])
+    _processTile.close()
 
     print("[+] Processing Main Image...")
 
@@ -184,7 +199,7 @@ def processTargetImage(target_path, SOURCE_DIR, OUTPUT):
     height, width = img.shape[0], img.shape[1]
 
     if (height % TILE_SIZE == 0) and (width % TILE_SIZE == 0):
-        _imgcrop = Process(target=imgcrop, args=(
+        _imgcrop = Thread(target=imgcrop, args=(
             img, width // TILE_SIZE, height // TILE_SIZE))
         _imgcrop.start()
         print("[!] Cropping Target Image...")
@@ -195,7 +210,7 @@ def processTargetImage(target_path, SOURCE_DIR, OUTPUT):
         img = img[pixelsToTrimHeightEach:height-pixelsToTrimHeightEach,
                   pixelsToTrimWidthEach:width-pixelsToTrimWidthEach]
         height, width = img.shape[0], img.shape[1]
-        _imgcrop = Process(target=imgcrop, args=(
+        _imgcrop = Thread(target=imgcrop, args=(
             img, width // TILE_SIZE, height // TILE_SIZE))
         _imgcrop.start()
         print("[!] Cropping Target Image...")
@@ -205,40 +220,25 @@ def processTargetImage(target_path, SOURCE_DIR, OUTPUT):
             os.remove(os.path.join(TARGET_CACHE_DIR, f))
     else:
         os.mkdir(os.path.join(TARGET_CACHE_DIR))
-    output_img = Image.new('RGB', size=(width, height))
-    _processTile.join()
-    _analyseTiles = Thread(target=analyseTiles, args=())
 
     _imgcrop.join()
+    _processTile.join()
 
-    imgcrop(img, width // TILE_SIZE, height // TILE_SIZE)
+    _mainimgcrop = Pool(workers)
+    _mainimgcrop.starmap(imgcrop, [(img, width // TILE_SIZE, height // TILE_SIZE)])
+    _mainimgcrop.close()
 
-    _analyseTiles.start()
-    _analyseTiles.join()
-
-    print("[!] Target Image Processed")
+    analyseTiles()
 
     print("[!] Tiles Processed")
 
+    _mainimgcrop.join()
+    print("[!] Target Image Processed")
+
     print("[+] Building Output Image...")
-    for i in range(0, (height // TILE_SIZE)):
-        for j in range(0, (width // TILE_SIZE)):
-            rgb = Image.open(os.path.join(TARGET_CACHE_DIR,
-                                          str(i) + "," + str(j) + ".png"))
-            # find mean color value of a rgb tile
-            mean = np.mean(np.array(rgb))
-            # find the difference between two arrays
-            diff = np.abs(np.subtract(rgbList, mean))
-            # find the index of the diff in rgbList
-            index = np.where(diff == diff.min())[0][0]
-            fileName = f"{CACHE_DIR}/{np.array2string(rgbList[index], separator = ',').replace(' ', '').replace('[', '').replace(']', '')}.jpg"
-            fileName = Image.open(os.path.join(fileName))
-            output_img.paste(fileName, (j * TILE_SIZE, i * TILE_SIZE))
-
-    output_img.save(os.path.join(OUTPUT))
-
-    print("[+] Image created:", OUTPUT)
-
+    _buildMosaic = Pool(workers)
+    _buildMosaic.starmap(buildMosaic, [(height, width, _rgbList, OUTPUT)])
+    _buildMosaic.close()
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
