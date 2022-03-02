@@ -4,84 +4,76 @@ import sys
 from threading import Thread
 import cv2
 import numpy as np
+from PIL import Image
 from multiprocessing import Pool, cpu_count
 
 TILE_SIZE = 80  # Mosaic Tile Size in Pixels
-CACHE_DIR = ".CACHE1"
-TARGET_CACHE_DIR = ".TARGET_CACHE1"
+CACHE_DIR = ".CACHE"
+TARGET_CACHE_DIR = ".TARGET_CACHE"
 REUSE_CACHE = False
 ENLARGE_FACTOR = 8
 workers = cpu_count()
 
-_bgrList = []
+_rgbList = []
 
-def buildMosaic(height, width, bgrList, OUTPUT):
-    output_img = np.ones((height,width,3), np.uint8)*255
-
+def buildMosaic(height, width, rgbList, OUTPUT):
+    output_img = Image.new('RGB', size=(width, height))
     for i in range(0, (height // TILE_SIZE)):
         for j in range(0, (width // TILE_SIZE)):
-            bgr = cv2.imread(os.path.join(TARGET_CACHE_DIR,
+            rgb = Image.open(os.path.join(TARGET_CACHE_DIR,
                                           str(i) + "," + str(j) + ".png"))
-            mean = np.mean(np.array(bgr))   # find mean color value of a bgr tile
-            diff = np.abs(np.subtract(bgrList, mean))   # find the difference between two arrays
-            index = np.where(diff == diff.min())[0][0]  # find the index of the diff in bgrList
-            fileName = f"{CACHE_DIR}/{np.array2string(bgrList[index], separator = ',').replace(' ', '').replace('[', '').replace(']', '')}.jpg"
-
-            fileName = cv2.imread(os.path.join(fileName))
-
-            x, x2 = j * TILE_SIZE, (j + 1) * TILE_SIZE
-            y, y2 = i * TILE_SIZE, (i + 1) * TILE_SIZE
-
-            output_img[y:y2, x:x2] = fileName
-
-    cv2.imwrite(os.path.join(OUTPUT), output_img)
+            mean = np.mean(np.array(rgb))   # find mean color value of a rgb tile
+            diff = np.abs(np.subtract(rgbList, mean))   # find the difference between two arrays
+            index = np.where(diff == diff.min())[0][0]  # find the index of the diff in rgbList
+            fileName = f"{CACHE_DIR}/{np.array2string(rgbList[index], separator = ',').replace(' ', '').replace('[', '').replace(']', '')}.jpg"
+            fileName = Image.open(os.path.join(fileName))
+            output_img.paste(fileName, (j * TILE_SIZE, i * TILE_SIZE))
+    output_img.save(os.path.join(OUTPUT))
 
     print("[+] Image created:", OUTPUT)
 
 
 def analyseTiles():
-    tilesBGR = [f.split(".")[0] for f in os.listdir(CACHE_DIR)]
-    for bgr in tilesBGR:
-        bgr = bgr.split(",")
-        _bgrList.append(
-            np.array([int(float(bgr[0])), int(float(bgr[1])), int(float(bgr[2]))]))
+    tilesRGB = [f.split(".")[0] for f in os.listdir(CACHE_DIR)]
+    for rgb in tilesRGB:
+        rgb = rgb.split(",")
+        _rgbList.append(
+            np.array([int(float(rgb[0])), int(float(rgb[1])), int(float(rgb[2]))]))
 
 
 def findDominantColor(im):
     r_sum = g_sum = b_sum = 0
     pixel_count = TILE_SIZE * TILE_SIZE
-    height, width = im.shape[:2]
+    width, height = im.size
     for i in range(0, width):
         for j in range(0, height):
-            b_count, g_count, r_count = im[j,i][:3]
+            r_count, g_count, b_count = im.getpixel((i, j))
             r_sum += r_count
             g_sum += g_count
             b_sum += b_count
-    bgr = np.array([int(b_sum / pixel_count), int(g_sum / pixel_count), int(r_sum / pixel_count)])
-    
-    avgColorPerRow = np.average(im, axis=0)
-    avgColor = np.average(avgColorPerRow, axis=0)
-    dominant_color = np.array2string(np.true_divide(np.add(bgr, avgColor), 2).astype(int), separator=',').replace('[', '').replace(']', '').replace(' ', '')
 
+    rgb = np.array([int(r_sum / pixel_count), int(g_sum /
+                                                  pixel_count), int(b_sum / pixel_count)])
+    pixels = im.getcolors(TILE_SIZE * TILE_SIZE)
+    pixels = sorted(pixels, key=lambda t: t[0])
+    dominant_color = np.asarray(pixels[-1][1])
+    dominant_color = np.array2string(np.true_divide(np.add(rgb, dominant_color), 2).astype(
+        int), separator=',').replace('[', '').replace(']', '').replace(' ', '')
     return dominant_color
 
 
 def imgcrop(im, xPieces, yPieces):  # im in the format of numpy array
-    imgwidth, imgheight = im.shape[:2]
+    im = Image.fromarray(cv2.cvtColor(im, cv2.COLOR_BGR2RGB))
+    imgwidth, imgheight = im.size
     height = imgheight // yPieces
     width = imgwidth // xPieces
-    h, w = imgheight // (imgheight // TILE_SIZE), imgwidth // (imgwidth // TILE_SIZE)
     for i in range(0, yPieces):
         for j in range(0, xPieces):
-
-            x, x2 = j * w, (j + 1) * w
-            y, y2 = i * h, (i + 1) * h
-
-            a = im[y:y2, x:x2]
-            a = np.array(a)
-            
+            box = (j * width, i * height, (j + 1) * width, (i + 1) * height)
+            a = im.crop(box)
             try:
-                cv2.imwrite(os.path.join(TARGET_CACHE_DIR + "/" + str(i) + "," + str(j) + ".png"), a)
+                a.save(os.path.join(TARGET_CACHE_DIR + "/" +
+                                    str(i) + "," + str(j) + ".png"), "PNG")
             except:
                 pass
 
@@ -132,7 +124,7 @@ def processTile(dir):
                 index += 1
                 cv2.imwrite(f"{CACHE_DIR}/cached_{index}.jpg",
                             cache_img, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
-            elif not f.endswith(".DS_Store") and f.endswith(".jpg"):
+            elif not f.endswith(".DS_Store"):
                 index += 1
                 shutil.copy(os.path.join(dir, f),
                             f"{CACHE_DIR}/cached_{index}.jpg")
@@ -145,7 +137,8 @@ def processTile(dir):
                     if height == width:
                         f = cv2.resize(f, (TILE_SIZE, TILE_SIZE),
                                     interpolation=cv2.INTER_AREA)
-                        dominantColor = findDominantColor(f)
+                        _f = cv2.cvtColor(f, cv2.COLOR_BGR2RGB)
+                        dominantColor = findDominantColor(Image.fromarray(_f))
                         os.remove(CACHE_DIR+"/"+fi)
                         cv2.imwrite(f"{CACHE_DIR}/{dominantColor}.jpg", f,
                                     [int(cv2.IMWRITE_JPEG_QUALITY), 100])
@@ -157,7 +150,8 @@ def processTile(dir):
                         h = height
                         f = cv2.resize(f[y:y+h, x:x+w], (TILE_SIZE,
                                                         TILE_SIZE), interpolation=cv2.INTER_AREA)
-                        dominantColor = findDominantColor(f)
+                        _f = cv2.cvtColor(f, cv2.COLOR_BGR2RGB)
+                        dominantColor = findDominantColor(Image.fromarray(_f))
 
                         os.remove(CACHE_DIR+"/"+fi)
                         cv2.imwrite(f"{CACHE_DIR}/{dominantColor}.jpg", f,
@@ -169,7 +163,9 @@ def processTile(dir):
                         h = width
                         f = cv2.resize(f[y:y+h, x:x+w], (TILE_SIZE,
                                                         TILE_SIZE), interpolation=cv2.INTER_AREA)
-                        dominantColor = findDominantColor(f)
+
+                        _f = cv2.cvtColor(f, cv2.COLOR_BGR2RGB)
+                        dominantColor = findDominantColor(Image.fromarray(_f))
 
                         os.remove(CACHE_DIR+"/"+fi)
                         cv2.imwrite(f"{CACHE_DIR}/{dominantColor}.jpg", f,
@@ -195,12 +191,12 @@ def processTargetImage(target_path, SOURCE_DIR, OUTPUT):
 
     # read target image
     img = cv2.imread(target_path)
-    height, width = img.shape[:2]
+    height, width = img.shape[0], img.shape[1]
 
     # enlarge width and height of target image with ENLARGE_FACTOR
     img = cv2.resize(img, (int(width * ENLARGE_FACTOR),
                            int(height * ENLARGE_FACTOR)), interpolation=cv2.INTER_NEAREST)
-    height, width = img.shape[:2]
+    height, width = img.shape[0], img.shape[1]
 
     if (height % TILE_SIZE == 0) and (width % TILE_SIZE == 0):
         _imgcrop = Thread(target=imgcrop, args=(
@@ -213,7 +209,7 @@ def processTargetImage(target_path, SOURCE_DIR, OUTPUT):
         pixelsToTrimWidthEach = (width % TILE_SIZE) // 2
         img = img[pixelsToTrimHeightEach:height-pixelsToTrimHeightEach,
                   pixelsToTrimWidthEach:width-pixelsToTrimWidthEach]
-        height, width = img.shape[:2]
+        height, width = img.shape[0], img.shape[1]
         _imgcrop = Thread(target=imgcrop, args=(
             img, width // TILE_SIZE, height // TILE_SIZE))
         _imgcrop.start()
@@ -241,7 +237,7 @@ def processTargetImage(target_path, SOURCE_DIR, OUTPUT):
 
     print("[+] Building Output Image...")
     _buildMosaic = Pool(workers)
-    _buildMosaic.starmap(buildMosaic, [(height, width, _bgrList, OUTPUT)])
+    _buildMosaic.starmap(buildMosaic, [(height, width, _rgbList, OUTPUT)])
     _buildMosaic.close()
 
 if __name__ == "__main__":
