@@ -1,6 +1,7 @@
 # pyPhotoMosaic
- pyPhotoMosaic lets you create photomosaics.
+pyPhotoMosaic lets you create photomosaics in a few steps.
 
+<br>Trying to optimise the efficiency of the code to reduce build time.
 ## Example:
 ### Original & Output (CV2)
 <p float="left">
@@ -16,10 +17,10 @@ Artist:
 <a href="https://www.pixiv.net/artworks/96381546">https://www.pixiv.net/artworks/96381546</a>
 
 ## Updated to use pure OpenCV for image manipulation
-Benchmark Params: TILE_SIZE = 80, ENLARGE_FACTOR = 8, REUSE_CACHE = FALSE
+Benchmark Params: `TILE_SIZE = 80`, `ENLARGE_FACTOR = 8`, `REUSE_CACHE = FALSE`
 
-Old PIL processing time: 3m 03.70s total
-New CV2 processing time: 2m 14.98s total
+- Old PIL processing time: 3m 03.70s total
+- New CV2 processing time: 2m 14.98s total
 
 
 ## Prerequisites
